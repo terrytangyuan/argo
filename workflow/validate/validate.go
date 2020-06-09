@@ -391,6 +391,8 @@ func (ctx *templateValidationCtx) validateTemplate(tmpl *wfv1.Template, tmplCtx 
 		localParams[common.LocalVarRetries] = placeholderGenerator.NextPlaceholder()
 		scope[common.LocalVarRetries] = placeholderGenerator.NextPlaceholder()
 	}
+	localParams[common.LocalVarNumSucceeded] = placeholderGenerator.NextPlaceholder()
+	scope[common.LocalVarNumSucceeded] = placeholderGenerator.NextPlaceholder()
 	if tmpl.IsLeaf() {
 		for _, art := range tmpl.Outputs.Artifacts {
 			if art.Path != "" {

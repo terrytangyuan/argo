@@ -705,6 +705,81 @@ func TestStepsRetriesVariable(t *testing.T) {
 	}
 }
 
+var stepsNumSucceededVariableTemplate = `
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: whalesay-num-succeeded
+spec:
+  entrypoint: expand-task
+  templates:
+  - name: expand-task
+    steps:
+      - - name: expand-task
+		  template: expand-task
+          arguments:
+            parameters:
+            - name: message
+              value: "{{item}}"
+          withItems: [1,2,3]
+	  - - name: may-run
+		  template: may-run
+		  when: "{{steps.expand-task.subTasks.succeeded}} > 2"
+
+  - name: expand-task
+	inputs:
+	  parameters:
+	  - message
+    container:
+      image: docker/whalesay:latest
+      command: [sh, -c]
+      args: ["echo {{inputs.parameters.message}}"]
+
+  - name: may-run
+    container:
+      image: docker/whalesay:latest
+      command: [sh, -c]
+      args: ["echo success"]
+`
+
+func TestStepsNumSucceededVariableTemplate(t *testing.T) {
+	cancel, controller := newController()
+	defer cancel()
+	wfcset := controller.wfclientset.ArgoprojV1alpha1().Workflows("")
+	wf := unmarshalWF(stepsNumSucceededVariableTemplate)
+	wf, err := wfcset.Create(wf)
+	assert.Nil(t, err)
+	wf, err = wfcset.Get(wf.ObjectMeta.Name, metav1.GetOptions{})
+	assert.Nil(t, err)
+	woc := newWorkflowOperationCtx(wf, controller)
+	woc.operate()
+	pods, err := controller.kubeclientset.CoreV1().Pods("").List(metav1.ListOptions{})
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(pods.Items))
+
+	// complete the first pod
+	makePodsPhase(t, apiv1.PodSucceeded, controller.kubeclientset, wf.ObjectMeta.Namespace)
+	wf, err = wfcset.Get(wf.ObjectMeta.Name, metav1.GetOptions{})
+	assert.Nil(t, err)
+	woc = newWorkflowOperationCtx(wf, controller)
+	woc.operate()
+
+	// fail the second pod
+	makePodsPhase(t, apiv1.PodFailed, controller.kubeclientset, wf.ObjectMeta.Namespace)
+	wf, err = wfcset.Get(wf.ObjectMeta.Name, metav1.GetOptions{})
+	assert.Nil(t, err)
+	woc = newWorkflowOperationCtx(wf, controller)
+	woc.operate()
+	pods, err = controller.kubeclientset.CoreV1().Pods("").List(metav1.ListOptions{})
+	assert.Nil(t, err)
+	assert.Equal(t, 3, len(pods.Items))
+	assert.Equal(t, "cowsay success", pods.Items[0].Spec.Containers[1].Args[0])
+	assert.Equal(t, "cowsay failure", pods.Items[1].Spec.Containers[1].Args[0])
+
+	// verify that after the cowsay failure pod failed, we are retrying cowsay success
+	assert.Equal(t, "cowsay success", pods.Items[2].Spec.Containers[1].Args[0])
+}
+
 func TestAssessNodeStatus(t *testing.T) {
 	daemoned := true
 	tests := []struct {

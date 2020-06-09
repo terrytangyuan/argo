@@ -134,6 +134,8 @@ const (
 	LocalVarPodName = "pod.name"
 	// LocalVarRetries is a step level variable that references the retries number if retryStrategy is specified
 	LocalVarRetries = "retries"
+	// LocalVarNumSucceeded is a step level variable that tracks the number of succeeded steps
+	LocalVarNumSucceeded = "succeeded"
 	// LocalVarDuration is a step level variable (currently only available in metric emission) that tracks the duration of the step
 	LocalVarDuration = "duration"
 	// LocalVarStatus is a step level variable (currently only available in metric emission) that tracks the duration of the step
