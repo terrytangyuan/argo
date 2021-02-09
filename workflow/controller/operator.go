@@ -330,6 +330,7 @@ func (woc *wfOperationCtx) operate(ctx context.Context) {
 		if errorsutil.IsTransientErr(err) {
 			// Error was most likely caused by a lack of resources.
 			// In this case, Workflow will be in pending state and requeue.
+			woc.incTransientErrorCount()
 			woc.markWorkflowPhase(ctx, wfv1.WorkflowPending, fmt.Sprintf("Waiting for a PVC to be created. %v", err))
 			woc.requeue()
 			return
@@ -353,7 +354,12 @@ func (woc *wfOperationCtx) operate(ctx context.Context) {
 			woc.eventRecorder.Event(woc.wf, apiv1.EventTypeWarning, "WorkflowTimedOut", x.Error())
 		case ErrParallelismReached:
 		default:
-			if !errorsutil.IsTransientErr(err) && !woc.wf.Status.Phase.Completed() && os.Getenv("BUBBLE_ENTRY_TEMPLATE_ERR") != "false" {
+			var isTransientErr bool
+			if errorsutil.IsTransientErr(err) {
+				isTransientErr = true
+				woc.incTransientErrorCount()
+			}
+			if !isTransientErr && !woc.wf.Status.Phase.Completed() && os.Getenv("BUBBLE_ENTRY_TEMPLATE_ERR") != "false" {
 				woc.markWorkflowError(ctx, x)
 			}
 		}
@@ -1819,6 +1825,11 @@ func (woc *wfOperationCtx) executeTemplate(ctx context.Context, nodeName string,
 	return node, nil
 }
 
+func (woc *wfOperationCtx) incTransientErrorCount() {
+	currentCount, _ := strconv.Atoi(woc.globalParams[common.GlobalVarWorkflowTransientErrors])
+	woc.globalParams[common.GlobalVarWorkflowTransientErrors] = strconv.Itoa(currentCount + 1)
+}
+
 // Checks if the template has exceeded its deadline
 func (woc *wfOperationCtx) checkTemplateTimeout(tmpl *wfv1.Template, node *wfv1.NodeStatus) (*time.Time, error) {
 	if node == nil {
@@ -2377,6 +2388,7 @@ func (woc *wfOperationCtx) requeueIfTransientErr(err error, nodeName string) (*w
 	if errorsutil.IsTransientErr(err) {
 		// Our error was most likely caused by a lack of resources.
 		woc.requeue()
+		woc.incTransientErrorCount()
 		return woc.markNodePending(nodeName, err), nil
 	}
 	return nil, err
@@ -3085,7 +3097,12 @@ func (woc *wfOperationCtx) deletePDBResource(ctx context.Context) error {
 		if apierr.IsNotFound(err) {
 			return true, nil
 		}
-		return !errorsutil.IsTransientErr(err), err
+		var isTransientErr bool
+		if errorsutil.IsTransientErr(err) {
+			isTransientErr = true
+			woc.incTransientErrorCount()
+		}
+		return !isTransientErr, err
 	})
 	if err != nil {
 		woc.log.WithField("err", err).Error("Unable to delete PDB resource for workflow.")

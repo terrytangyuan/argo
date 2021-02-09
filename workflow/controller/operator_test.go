@@ -4654,18 +4654,19 @@ func TestCheckForbiddenErrorAndResbmitAllowed(t *testing.T) {
 
 	forbiddenErr := apierr.NewForbidden(schema.GroupResource{Group: "test", Resource: "test1"}, "test", errors.New("exceeded quota"))
 	nonForbiddenErr := apierr.NewBadRequest("badrequest")
+	t.Run("NonForbiddenError", func(t *testing.T) {
+		node, err := woc.requeueIfTransientErr(nonForbiddenErr, "resubmit-pending-wf")
+		assert.Error(t, err)
+		assert.Nil(t, node)
+		assert.Equal(t, "", woc.globalParams[common.GlobalVarWorkflowTransientErrors])
+	})
 	t.Run("ForbiddenError", func(t *testing.T) {
 		node, err := woc.requeueIfTransientErr(forbiddenErr, "resubmit-pending-wf")
 		assert.NotNil(t, node)
 		assert.NoError(t, err)
 		assert.Equal(t, wfv1.NodePending, node.Phase)
+		assert.Equal(t, "1", woc.globalParams[common.GlobalVarWorkflowTransientErrors])
 	})
-	t.Run("NonForbiddenError", func(t *testing.T) {
-		node, err := woc.requeueIfTransientErr(nonForbiddenErr, "resubmit-pending-wf")
-		assert.Error(t, err)
-		assert.Nil(t, node)
-	})
-
 }
 
 func TestResubmitMemoization(t *testing.T) {
@@ -5199,6 +5200,7 @@ func TestStorageQuota(t *testing.T) {
 	woc.operate(ctx)
 	assert.Equal(t, wfv1.WorkflowPending, woc.wf.Status.Phase)
 	assert.Contains(t, woc.wf.Status.Message, "Waiting for a PVC to be created.")
+	assert.Equal(t, "1", woc.globalParams[common.GlobalVarWorkflowTransientErrors])
 
 	controller.kubeclientset.(*fake.Clientset).BatchV1().(*batchfake.FakeBatchV1).Fake.PrependReactor("create", "persistentvolumeclaims", func(action k8stesting.Action) (bool, runtime.Object, error) {
 		return true, nil, apierr.NewBadRequest("BadRequest")
@@ -5207,6 +5209,7 @@ func TestStorageQuota(t *testing.T) {
 	woc.operate(ctx)
 	assert.Equal(t, wfv1.WorkflowError, woc.wf.Status.Phase)
 	assert.Contains(t, woc.wf.Status.Message, "BadRequest")
+	assert.Equal(t, "1", woc.globalParams[common.GlobalVarWorkflowTransientErrors])
 }
 
 var podWithFailed = `

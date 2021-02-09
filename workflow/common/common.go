@@ -150,6 +150,8 @@ const (
 	GlobalVarWorkflowDuration = "workflow.duration"
 	// GlobalVarWorkflowParameters is a JSON string containing all workflow parameters
 	GlobalVarWorkflowParameters = "workflow.parameters"
+	// GlobalVarWorkflowTransientErrors is a global workflow variable that tracks the number of transient errors in the operator
+	GlobalVarWorkflowTransientErrors = "workflow.transientErrors"
 	// LocalVarPodName is a step level variable that references the name of the pod
 	LocalVarPodName = "pod.name"
 	// LocalVarRetries is a step level variable that references the retries number if retryStrategy is specified
