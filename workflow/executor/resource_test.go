@@ -7,6 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"os"
@@ -176,6 +177,18 @@ spec:
 
 	dataBytes = []byte("")
 	request = restClient.Delete().RequestURI(selfLink).SetHeader("Content-Type", "application/yaml").Body(dataBytes)
+	stream, err = request.Stream(context.TODO())
+	assert.NoError(t, err)
+	defer stream.Close()
+	jsonBytes, err = ioutil.ReadAll(stream)
+	assert.NoError(t, err)
+	log.Info(string(jsonBytes))
+
+	dataBytes = []byte(`- op: add
+  path: /metadata/annotations/foo
+  value: bar
+`)//.RequestURI(selfLink)
+	restClient.Patch(types.MergePatchType).SetHeader("Content-Type", "application/json").Body(dataBytes)
 	stream, err = request.Stream(context.TODO())
 	assert.NoError(t, err)
 	defer stream.Close()
