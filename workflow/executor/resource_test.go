@@ -1,7 +1,11 @@
 package executor
 
 import (
+	"context"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 	"os"
 	"testing"
 
@@ -115,4 +119,49 @@ func TestResourceConditionsMatching(t *testing.T) {
 	finished, err = matchConditions(jsonBytes, successReqs, failReqs)
 	assert.Error(t, err, "Neither success condition nor the failure condition has been matched. Retrying...")
 	assert.True(t, finished)
+}
+
+func TestWorks(t *testing.T) {
+	//selfLink := "/apis/argoproj.io/v1alpha1/namespaces/kubemaker/workflows/dag-diamond-coinflip-77q9b"
+	config, err := clientcmd.BuildConfigFromFlags("", "/Users/yuan.tang/.kube/config")
+	client, err := kubernetes.NewForConfig(config)
+	assert.NoError(t, err)
+	restClient := client.RESTClient()
+
+	//var successReqs labels.Requirements
+	//successSelector, err := labels.Parse("status.phase == Succeeded")
+	//assert.NoError(t, err)
+	//successReqs, _ = successSelector.Requirements()
+	//assert.NoError(t, err)
+	//var failReqs labels.Requirements
+	//failSelector, err := labels.Parse("status.phase == Error")
+	//assert.NoError(t, err)
+	//failReqs, _ = failSelector.Requirements()
+	//assert.NoError(t, err)
+	//
+	//link := strings.Split(selfLink, "/")
+	//plural := link[len(link)-2]
+	//gvr := schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: plural}
+	// TODO: jsonString is null
+	//var data io.ReadCloser
+	//data, err = os.Open("../../examples/k8s-owner-reference.yaml")
+	//assert.NoError(t, err)
+	dataBytes := []byte(`apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: owned-eg-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      container:
+        image: argoproj/argosay:v2`)
+	request := restClient.Post().RequestURI("/apis/argoproj.io/v1alpha1/namespaces/argo/workflows").SetHeader("Content-Type", "application/yaml").Body(dataBytes)
+	stream, err := request.Stream(context.TODO())
+	assert.NoError(t, err)
+	//defer stream.Close()
+	jsonBytes, err := ioutil.ReadAll(stream)
+	jsonString := string(jsonBytes)
+	log.Info(jsonString)
+	//_, err = checkResourceState(dynamicClient, context.TODO(), "kubemaker", "dag-diamond-coinflip-77q9b", gvr, successReqs, failReqs)
 }
