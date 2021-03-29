@@ -23,14 +23,16 @@ type configMapCache struct {
 	name       string
 	kubeClient kubernetes.Interface
 	lock       sync.RWMutex
+	gcStrategy *wfv1.CacheGCStrategy
 }
 
-func NewConfigMapCache(ns string, ki kubernetes.Interface, n string) MemoizationCache {
+func NewConfigMapCache(ns string, ki kubernetes.Interface, n string, gcStrategy *wfv1.CacheGCStrategy) MemoizationCache {
 	return &configMapCache{
 		namespace:  ns,
 		name:       n,
 		kubeClient: ki,
 		lock:       sync.RWMutex{},
+		gcStrategy: gcStrategy,
 	}
 }
 
@@ -62,7 +64,11 @@ func (c *configMapCache) Load(ctx context.Context, key string) (*Entry, error) {
 
 	c.logInfo(log.Fields{}, "config map cache loaded")
 	hitTime := time.Now()
+	// TODO: Need a way to differentiate cache configmaps from other configmaps
 	cm.SetLabels(map[string]string{common.LabelKeyCacheLastHitTimestamp: "true"})
+	if c.gcStrategy != nil && c.gcStrategy.AfterNotHitDuration != "" {
+		cm.SetLabels(map[string]string{"gc-after-not-hit-duration": c.gcStrategy.AfterNotHitDuration})
+	}
 	rawEntry, ok := cm.Data[key]
 	if !ok || rawEntry == "" {
 		c.logInfo(log.Fields{}, "config map cache miss: entry does not exist")
@@ -119,7 +125,11 @@ func (c *configMapCache) Save(ctx context.Context, key string, nodeId string, va
 	}
 
 	creationTime := time.Now()
+	// TODO: Need a way to differentiate cache configmaps from other configmaps
 	cache.SetLabels(map[string]string{common.LabelKeyCacheLastHitTimestamp: "true"})
+	if c.gcStrategy != nil && c.gcStrategy.AfterNotHitDuration != "" {
+		cache.SetLabels(map[string]string{"gc-after-not-hit-duration": c.gcStrategy.AfterNotHitDuration})
+	}
 
 	newEntry := Entry{
 		NodeID:            nodeId,
