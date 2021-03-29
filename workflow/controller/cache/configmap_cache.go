@@ -68,6 +68,8 @@ func (c *configMapCache) Load(ctx context.Context, key string) (*Entry, error) {
 	cm.SetLabels(map[string]string{common.LabelKeyCacheLastHitTimestamp: "true"})
 	if c.gcStrategy != nil && c.gcStrategy.AfterNotHitDuration != "" {
 		cm.SetLabels(map[string]string{"gc-after-not-hit-duration": c.gcStrategy.AfterNotHitDuration})
+	} else {
+		cm.SetLabels(map[string]string{"gc-after-not-hit-duration": ""})
 	}
 	rawEntry, ok := cm.Data[key]
 	if !ok || rawEntry == "" {
@@ -129,6 +131,8 @@ func (c *configMapCache) Save(ctx context.Context, key string, nodeId string, va
 	cache.SetLabels(map[string]string{common.LabelKeyCacheLastHitTimestamp: "true"})
 	if c.gcStrategy != nil && c.gcStrategy.AfterNotHitDuration != "" {
 		cache.SetLabels(map[string]string{"gc-after-not-hit-duration": c.gcStrategy.AfterNotHitDuration})
+	} else {
+		cache.SetLabels(map[string]string{"gc-after-not-hit-duration": ""})
 	}
 
 	newEntry := Entry{
